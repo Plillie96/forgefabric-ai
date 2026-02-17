@@ -1,4 +1,4 @@
-﻿from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import List
 
@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     database_url: str = Field(default="postgresql://user:pass@localhost:5432/forgefabric")
     openai_api_key: str = Field(default="")
     stripe_secret_key: str = Field(default="")
+    clerk_secret_key: str = Field(default="")
+    supabase_url: str = Field(default="")
+    supabase_key: str = Field(default="")
 
     model_config = {"env_file": ".env", "case_sensitive": False}
 
