@@ -1,54 +1,114 @@
-﻿# Production Deploy Guide
+# Production Deploy Guide
 
-## Prerequisites
+## Option A: Azure (Recommended)
 
-- GitHub repo pushed
-- Vercel account (free tier works)
-- Render account (free tier works)
-- OpenAI API key
-- (Optional) Stripe secret key
+### Prerequisites
+- Azure CLI installed (`az login`)
+- Azure subscription
 
-## Frontend: Vercel
+### One-Command Deploy
+```bash
+bash scripts/deploy-azure.sh
+```
 
+This creates:
+- **Azure App Service** (Backend - Python 3.11 + FastAPI)
+- **Azure App Service** (Frontend - Node 18 + Next.js)
+- **Azure Database for PostgreSQL** Flexible Server
+- **Azure Cache for Redis**
+
+### After deploy - set environment variables
+
+**Backend:**
+```bash
+az webapp config appsettings set --resource-group forgefabric-rg --name forgefabric-api --settings \
+  OPENAI_API_KEY=<your-key> \
+  SECRET_KEY=<random-32-char-string> \
+  DATABASE_URL=<postgres-connection-string> \
+  REDIS_URL=<redis-connection-string> \
+  CORS_ORIGINS=https://forgefabric-web.azurewebsites.net \
+  CLERK_SECRET_KEY=<your-clerk-secret> \
+  OPA_URL=http://localhost:8181
+```
+
+**Frontend:**
+```bash
+az webapp config appsettings set --resource-group forgefabric-rg --name forgefabric-web --settings \
+  NEXT_PUBLIC_API_URL=https://forgefabric-api.azurewebsites.net \
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=<your-clerk-key>
+```
+
+### Deploy code
+
+**Backend:**
+```bash
+cd backend
+az webapp up --name forgefabric-api --resource-group forgefabric-rg --runtime "PYTHON:3.11"
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm run build
+az webapp up --name forgefabric-web --resource-group forgefabric-rg --runtime "NODE:18-lts"
+```
+
+### Run migrations
+```bash
+psql $DATABASE_URL -f backend/migrations/001_langgraph_checkpointer.sql
+psql $DATABASE_URL -f backend/migrations/002_multi_tenancy_rls.sql
+```
+
+### URLs
+- Backend: https://forgefabric-api.azurewebsites.net
+- Frontend: https://forgefabric-web.azurewebsites.net
+
+---
+
+## Option B: Vercel + Render
+
+### Frontend: Vercel
 1. Import repo at https://vercel.com/new
 2. Set **Root Directory** to `frontend`
 3. Add environment variable:
-   - `BACKEND_URL` = your Render backend URL (e.g. `https://forgefabric-backend.onrender.com`)
+   - `NEXT_PUBLIC_API_URL` = your Render backend URL
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` = your Clerk key
 4. Deploy.
 
-## Backend: Render
-
+### Backend: Render
 1. Create Web Service at https://dashboard.render.com/new
 2. Connect GitHub repo, set **Root Directory** to `backend`
 3. Build command: `pip install -r requirements.txt`
 4. Start command: `uvicorn src.main:app --host 0.0.0.0 --port 10000`
-5. Add environment variables:
-   - `OPENAI_API_KEY`
-   - `DATABASE_URL` (from Render Postgres add-on)
-   - `TEMPORAL_HOST` (Temporal Cloud or self-hosted)
-   - `OPA_URL` (OPA sidecar or hosted)
-   - `STRIPE_SECRET_KEY` (optional)
-   - `SECRET_KEY` (random 32+ char string)
-   - `CORS_ORIGINS` = your Vercel URL
+5. Add environment variables (see above)
 6. Deploy.
 
-## Database
+### Database
+Create a Postgres instance on Render. Run the migrations.
 
-Create a Postgres instance on Render. Run the migration:
+---
 
-`psql $DATABASE_URL -f backend/migrations/001_langgraph_checkpointer.sql`
+## Option C: Kubernetes (Azure AKS or any K8s)
 
-## Temporal
+```bash
+kubectl apply -f k8s/
+kubectl get hpa --watch
+```
 
-Use Temporal Cloud (https://temporal.io/cloud) or self-host with the
-`temporalio/auto-setup` Docker image on Render as a private service.
+See `k8s/` directory for Deployment, HPA (auto-scale 5-100 pods), and ConfigMap.
+
+---
 
 ## Verify
 
-- Visit your Vercel URL - landing page should load
-- Click Open Dashboard - trigger a swarm
+- Visit your frontend URL - landing page should load
+- Click Dashboard - trigger a swarm
 - Hit `/health` and `/ready` on the backend URL
 
 ## Timeline
 
-Total: about 45 to 60 minutes from zero to live.
+| Method | Time |
+|--------|------|
+| Azure (script) | ~15 minutes |
+| Vercel + Render | ~45 minutes |
+| Kubernetes | ~30 minutes (after cluster setup) |
