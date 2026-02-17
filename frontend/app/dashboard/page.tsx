@@ -15,7 +15,7 @@ export default function Dashboard() {
   const triggerSwarm = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/run-deal", {
+      const res = await fetch("/api/agents/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(leadData),
@@ -32,8 +32,8 @@ export default function Dashboard() {
 
   const approve = async (decision: "approved" | "rejected") => {
     if (!pendingWorkflow) return;
-    await fetch("/api/run-deal", {
-      method: "PUT",
+    await fetch("/api/agents/approve", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workflow_id: pendingWorkflow, decision }),
     });
