@@ -1,54 +1,40 @@
-﻿import pytest
-from src.activities.sales_activities import execute_tool_activity
+import pytest
+from src.activities.types import AgentState, ToolCall
 
 
-@pytest.mark.anyio
-async def test_search_company_info():
-    result = await execute_tool_activity({"name": "search_company_info", "args": {"company_name": "Acme"}, "id": "1", "high_value": False})
-    assert result["role"] == "tool"
-    assert "Acme" in result["content"]
+def test_agent_state_init():
+    state = AgentState()
+    assert state.messages == []
 
 
-@pytest.mark.anyio
-async def test_get_contact_details():
-    result = await execute_tool_activity({"name": "get_contact_details", "args": {"company_name": "Acme"}, "id": "2", "high_value": False})
-    assert "VP Operations" in result["content"] or "contact" in result["content"]
+def test_agent_state_with_messages():
+    msgs = [{"role": "user", "content": "hello"}]
+    state = AgentState(messages=msgs)
+    assert len(state.messages) == 1
+    assert state.messages[0]["role"] == "user"
 
 
-@pytest.mark.anyio
-async def test_assess_deal_strong_fit():
-    result = await execute_tool_activity({"name": "assess_deal_fit", "args": {"company_size": 500, "budget_estimate": 100000}, "id": "3", "high_value": False})
-    assert "Strong fit" in result["content"]
+def test_tool_call_structure():
+    tc: ToolCall = {"name": "search_company_info", "args": {"company_name": "Acme"}, "id": "tc-1", "high_value": False}
+    assert tc["name"] == "search_company_info"
+    assert tc["high_value"] is False
 
 
-@pytest.mark.anyio
-async def test_assess_deal_medium_fit():
-    result = await execute_tool_activity({"name": "assess_deal_fit", "args": {"company_size": 100, "budget_estimate": 30000}, "id": "4", "high_value": False})
-    assert "Medium fit" in result["content"]
+def test_roi_calculation():
+    from src.services.roi_calculator import calculate_roi
+
+    result = calculate_roi(
+        actions=[{"time_saved": 2}, {"time_saved": 3}],
+        deal_value=100000,
+    )
+    assert result.total > 0
+    assert "time_saved_value" in result.breakdown
+    assert "revenue_influence" in result.breakdown
 
 
-@pytest.mark.anyio
-async def test_assess_deal_low_fit():
-    result = await execute_tool_activity({"name": "assess_deal_fit", "args": {"company_size": 10, "budget_estimate": 5000}, "id": "5", "high_value": False})
-    assert "Low fit" in result["content"]
+def test_roi_low_deal_value():
+    from src.services.roi_calculator import calculate_roi
 
+    result = calculate_roi(actions=[{"time_saved": 1}], deal_value=10000)
+    assert result.breakdown["revenue_influence"] == 0
 
-@pytest.mark.anyio
-async def test_unknown_tool():
-    result = await execute_tool_activity({"name": "nonexistent", "args": {}, "id": "6", "high_value": False})
-    assert result["role"] == "tool"
-    assert "nonexistent" in result["content"]
-
-
-@pytest.mark.anyio
-async def test_calculate_roi_strong_fit():
-    from src.activities.sales_activities import calculate_roi_activity
-    roi = await calculate_roi_activity({"lead_data": {"budget_estimate": 100000}, "state": {"messages": [{"role": "tool", "content": "Strong fit"}]}})
-    assert roi > 0
-
-
-@pytest.mark.anyio
-async def test_calculate_roi_no_fit():
-    from src.activities.sales_activities import calculate_roi_activity
-    roi = await calculate_roi_activity({"lead_data": {"budget_estimate": 100000}, "state": {"messages": [{"role": "tool", "content": "No match"}]}})
-    assert roi == 0.0

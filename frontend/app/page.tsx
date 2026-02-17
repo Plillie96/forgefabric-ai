@@ -34,7 +34,7 @@ export default function Home() {
 
         <div className="relative z-10 text-center px-6 max-w-5xl mx-auto">
           <div className="mb-8 flex justify-center">
-            <img src="/logo.png" alt="ForgeFabric" className="h-16" />
+            <img src="/logo.svg" alt="ForgeFabric" className="h-16" />
           </div>
 
           <h1 className="text-7xl font-bold tracking-tighter mb-6">
@@ -99,3 +99,4 @@ export default function Home() {
     </div>
   );
 }
+
