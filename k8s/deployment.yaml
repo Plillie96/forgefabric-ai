@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgefabric-worker
+  namespace: default
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: forgefabric-worker
+  template:
+    metadata:
+      labels:
+        app: forgefabric-worker
+    spec:
+      containers:
+      - name: worker
+        image: ghcr.io/plillie96/forgefabric-worker:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: forgefabric-env
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forgefabric-env
+data:
+  TEMPORAL_HOST: "temporal-frontend.temporal.svc.cluster.local:7233"
+  OPA_URL: "http://opa.default.svc.cluster.local:8181"
+  REDIS_URL: "redis://redis.default.svc.cluster.local:6379"
+  CORS_ORIGINS: "*"
