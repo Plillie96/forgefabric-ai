@@ -10,3 +10,5 @@ dist/
 .vs/
 .idea/
 *.log
+.env.local
+.env*.local
