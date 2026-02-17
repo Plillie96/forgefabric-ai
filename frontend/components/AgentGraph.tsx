@@ -2,28 +2,43 @@ export function AgentGraph() {
   const nodes = [
     { id: "qualifier", label: "Lead Qualifier", status: "completed" },
     { id: "researcher", label: "Research Agent", status: "completed" },
-    { id: "drafter", label: "Proposal Drafter", status: "running" },
+    { id: "governance", label: "OPA Governance", status: "running" },
+    { id: "drafter", label: "Proposal Drafter", status: "pending" },
     { id: "compliance", label: "Compliance Check", status: "pending" },
     { id: "closer", label: "Negotiation Agent", status: "pending" },
+    { id: "roi", label: "ROI Engine", status: "pending" },
   ];
 
   const statusColors: Record<string, string> = {
     completed: "border-green-500 bg-green-950",
     running: "border-blue-500 bg-blue-950 animate-pulse",
-    pending: "border-gray-600 bg-gray-900",
+    pending: "border-zinc-600 bg-zinc-800",
+  };
+
+  const statusIcons: Record<string, string> = {
+    completed: "\u2705",
+    running: "\u26A1",
+    pending: "\u23F3",
   };
 
   return (
-    <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800">
-      <h2 className="text-xl font-semibold mb-4">Agent Swarm</h2>
-      <div className="flex flex-wrap gap-4">
-        {nodes.map((node) => (
-          <div
-            key={node.id}
-            className={`px-4 py-2 rounded-xl border-2 ${statusColors[node.status]}`}
-          >
-            <div className="font-mono text-sm">{node.label}</div>
-            <div className="text-xs opacity-75">{node.status}</div>
+    <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+      <h2 className="text-xl font-semibold mb-4">Agent Swarm Pipeline</h2>
+      <div className="flex flex-wrap gap-3">
+        {nodes.map((node, i) => (
+          <div key={node.id} className="flex items-center gap-2">
+            <div
+              className={`px-4 py-3 rounded-xl border-2 transition-all ${statusColors[node.status]}`}
+            >
+              <div className="font-mono text-sm flex items-center gap-2">
+                <span>{statusIcons[node.status]}</span>
+                {node.label}
+              </div>
+              <div className="text-xs opacity-60 mt-1">{node.status}</div>
+            </div>
+            {i < nodes.length - 1 && (
+              <span className="text-zinc-600 text-lg">\u2192</span>
+            )}
           </div>
         ))}
       </div>
