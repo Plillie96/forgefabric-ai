@@ -6,14 +6,22 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
-from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import Runnable
 from ..governance.engine import evaluate_policy
 from ..config import settings
 
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2, api_key=settings.openai_api_key or None)
+_llm = None
+_llm_with_tools = None
+_agent_runnable = None
+
+def _get_llm():
+    global _llm
+    if _llm is None:
+        from langchain_openai import ChatOpenAI
+        _llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2, api_key=settings.openai_api_key or "sk-placeholder")
+    return _llm
 
 @tool
 def search_company_info(company_name: str) -> str:
@@ -37,7 +45,6 @@ def assess_deal_fit(company_size: int, budget_estimate: float) -> str:
         return "Low fit - disqualify politely."
 
 tools_list = [search_company_info, get_contact_details, assess_deal_fit]
-llm_with_tools = llm.bind_tools(tools_list)
 
 system_prompt = """You are a high-performing sales qualification agent.
 Use ReAct: Observe -> Reason -> Act (tool if needed) -> Observe.
@@ -49,7 +56,13 @@ prompt = ChatPromptTemplate.from_messages([
     MessagesPlaceholder(variable_name="messages"),
 ])
 
-agent_runnable: Runnable = prompt | llm_with_tools
+def _get_agent_runnable():
+    global _llm_with_tools, _agent_runnable
+    if _agent_runnable is None:
+        llm = _get_llm()
+        _llm_with_tools = llm.bind_tools(tools_list)
+        _agent_runnable = prompt | _llm_with_tools
+    return _agent_runnable
 
 class AgentState(dict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
@@ -58,6 +71,7 @@ class AgentState(dict):
 
 def agent_node(state: AgentState):
     messages = state["messages"]
+    agent_runnable = _get_agent_runnable()
     response = agent_runnable.invoke({"messages": messages})
     return {"messages": [response]}
 

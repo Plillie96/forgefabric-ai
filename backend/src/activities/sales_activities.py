@@ -1,17 +1,24 @@
 from temporalio import activity
 from src.activities.types import AgentState, ToolCall
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
 import httpx
 import os
 
-llm = ChatOpenAI(model="gpt-4o-mini", api_key=os.getenv("OPENAI_API_KEY") or None)
-
 OPA_URL = os.getenv("OPA_URL", "http://localhost:8181")
+
+_llm = None
+
+def get_llm():
+    global _llm
+    if _llm is None:
+        from langchain_openai import ChatOpenAI
+        api_key = os.getenv("OPENAI_API_KEY")
+        _llm = ChatOpenAI(model="gpt-4o-mini", api_key=api_key or "sk-placeholder")
+    return _llm
 
 @activity.defn
 async def llm_reason_activity(state: AgentState) -> dict:
     prompt = "You are a sales qualification agent. Reason step-by-step...\n" + str(state.messages)
+    llm = get_llm()
     response = await llm.ainvoke(prompt)
     return {
         "messages": [{"role": "assistant", "content": response.content}],
