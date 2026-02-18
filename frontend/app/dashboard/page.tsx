@@ -1,9 +1,21 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { Play, CheckCircle, Clock, AlertTriangle, Shield, DollarSign, Zap } from "lucide-react";
+import { Search, CheckCircle, Clock, AlertTriangle, Shield, DollarSign, Zap, Building2, Globe } from "lucide-react";
+
+interface CompanyResearch {
+  company: string;
+  description: string;
+  industry: string;
+  estimated_size: string;
+  estimated_revenue: string;
+  recent_news: string;
+  tech_stack_signals: string;
+  ai_readiness: string;
+}
 
 interface QualifyResult {
+  research: CompanyResearch;
   qualification: string;
   fit_score: string;
   reasoning: string;
@@ -14,20 +26,18 @@ interface QualifyResult {
 }
 
 export default function ForgeFabricDashboard() {
-  const [isLaunching, setIsLaunching] = useState(false);
-  const [swarmStatus, setSwarmStatus] = useState<"idle" | "running" | "completed" | "error">("idle");
+  const [isRunning, setIsRunning] = useState(false);
+  const [step, setStep] = useState<"idle" | "researching" | "qualifying" | "done" | "error">("idle");
   const [result, setResult] = useState<QualifyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [leadData, setLeadData] = useState({
-    company: "Nova Dynamics",
-    contact: "Alex Rivera",
-    budget_estimate: 150000,
-    company_size: 450,
-  });
+  const [company, setCompany] = useState("");
+  const [contact, setContact] = useState("");
+  const [budget, setBudget] = useState(0);
 
-  const handleLaunchSwarm = async () => {
-    setIsLaunching(true);
-    setSwarmStatus("running");
+  const handleSearch = async () => {
+    if (!company.trim()) return;
+    setIsRunning(true);
+    setStep("researching");
     setResult(null);
     setError(null);
 
@@ -35,32 +45,37 @@ export default function ForgeFabricDashboard() {
       const res = await fetch("/api/qualify/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(leadData),
+        body: JSON.stringify({
+          company: company.trim(),
+          contact: contact.trim(),
+          budget_estimate: budget,
+          company_size: 0,
+        }),
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Backend unreachable" }));
-        throw new Error(err.detail || "Request failed");
+        const err = await res.json().catch(() => ({ detail: "Backend unreachable. Run: cd backend && uvicorn src.main:app --port 8000" }));
+        throw new Error(err.detail);
       }
 
+      setStep("qualifying");
       const data: QualifyResult = await res.json();
       setResult(data);
-      setSwarmStatus("completed");
+      setStep("done");
     } catch (e: any) {
       setError(e.message);
-      setSwarmStatus("error");
+      setStep("error");
     } finally {
-      setIsLaunching(false);
+      setIsRunning(false);
     }
   };
 
-  const pipelineAgents = [
-    { name: "Lead Qualifier", getStatus: () => swarmStatus === "idle" ? "pending" : "completed" },
-    { name: "Research Agent", getStatus: () => swarmStatus === "idle" ? "pending" : swarmStatus === "running" ? "running" : "completed" },
-    { name: "OPA Governance", getStatus: () => swarmStatus === "completed" ? "completed" : swarmStatus === "running" ? "running" : "pending" },
-    { name: "LLM Reasoning", getStatus: () => swarmStatus === "completed" ? "completed" : swarmStatus === "running" ? "running" : "pending" },
-    { name: "ROI Engine", getStatus: () => swarmStatus === "completed" ? "completed" : "pending" },
-    { name: "Qualification", getStatus: () => swarmStatus === "completed" ? "completed" : "pending" },
+  const pipelineSteps = [
+    { name: "Company Search", status: step === "idle" ? "pending" : "completed" },
+    { name: "Research Agent", status: step === "idle" ? "pending" : step === "researching" ? "running" : "completed" },
+    { name: "OPA Governance", status: step === "done" ? "completed" : step === "qualifying" ? "running" : "pending" },
+    { name: "LLM Qualification", status: step === "done" ? "completed" : step === "qualifying" ? "running" : "pending" },
+    { name: "ROI Calculation", status: step === "done" ? "completed" : "pending" },
   ];
 
   return (
@@ -80,145 +95,161 @@ export default function ForgeFabricDashboard() {
           <div className="flex items-center gap-4">
             <Link href="/" className="text-sm text-zinc-400 hover:text-white transition-colors">Home</Link>
             <Link href="/observability" className="text-sm text-zinc-400 hover:text-white transition-colors">Observability</Link>
-            <div className="flex items-center gap-3 bg-zinc-900 px-5 py-2 rounded-2xl border border-zinc-700">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="text-emerald-400 font-medium text-sm">Live</span>
-            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Trigger */}
-          <div className="lg:col-span-7 bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8">
-            <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
-              <Play className="text-cyan-400" />
-              Qualify a Lead
-            </h2>
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="text-xs text-zinc-400 block mb-2">Company</label>
-                <input type="text" value={leadData.company} onChange={(e) => setLeadData({ ...leadData, company: e.target.value })} className="w-full bg-zinc-950 border border-zinc-700 focus:border-cyan-500 rounded-2xl px-5 py-3.5 text-white focus:outline-none transition-all" />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-400 block mb-2">Contact</label>
-                <input type="text" value={leadData.contact} onChange={(e) => setLeadData({ ...leadData, contact: e.target.value })} className="w-full bg-zinc-950 border border-zinc-700 focus:border-cyan-500 rounded-2xl px-5 py-3.5 text-white focus:outline-none transition-all" />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-400 block mb-2">Budget Estimate ($)</label>
-                <input type="number" value={leadData.budget_estimate} onChange={(e) => setLeadData({ ...leadData, budget_estimate: Number(e.target.value) })} className="w-full bg-zinc-950 border border-zinc-700 focus:border-cyan-500 rounded-2xl px-5 py-3.5 text-white focus:outline-none transition-all" />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-400 block mb-2">Company Size</label>
-                <input type="number" value={leadData.company_size} onChange={(e) => setLeadData({ ...leadData, company_size: Number(e.target.value) })} className="w-full bg-zinc-950 border border-zinc-700 focus:border-cyan-500 rounded-2xl px-5 py-3.5 text-white focus:outline-none transition-all" />
-              </div>
+        {/* Search */}
+        <div className="bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8 mb-8">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
+            <Search className="text-cyan-400" />
+            Search & Qualify a Company
+          </h2>
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1">
+              <label className="text-xs text-zinc-400 block mb-2">Company Name</label>
+              <input
+                type="text"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                placeholder="e.g. Stripe, Snowflake, Shopify, Datadog..."
+                className="w-full bg-zinc-950 border border-zinc-700 focus:border-cyan-500 rounded-2xl px-5 py-4 text-lg text-white placeholder-zinc-600 focus:outline-none transition-all"
+              />
             </div>
-            <button onClick={handleLaunchSwarm} disabled={isLaunching} className="mt-8 w-full bg-gradient-to-r from-cyan-500 via-blue-600 to-cyan-500 hover:brightness-110 py-5 rounded-2xl font-semibold text-lg tracking-wide shadow-2xl shadow-cyan-500/30 transition-all active:scale-[0.985] disabled:opacity-70">
-              {isLaunching ? "Running Agent..." : "Run Qualification Agent"}
-            </button>
-          </div>
-
-          {/* ROI */}
-          <div className="lg:col-span-5 bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8 flex flex-col">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h3 className="text-sm text-zinc-400">Estimated Value Created</h3>
-                <div className="text-6xl font-semibold text-emerald-400 mt-3 tracking-tighter">${(result?.roi_estimate || 0).toLocaleString()}</div>
-              </div>
-              <DollarSign className="w-12 h-12 text-emerald-400/30" />
+            <div className="w-48">
+              <label className="text-xs text-zinc-400 block mb-2">Contact (optional)</label>
+              <input type="text" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Name" className="w-full bg-zinc-950 border border-zinc-700 focus:border-cyan-500 rounded-2xl px-5 py-4 text-white placeholder-zinc-600 focus:outline-none transition-all" />
             </div>
-            {result && (
-              <div className="mt-auto space-y-3">
-                <div className="flex justify-between text-sm text-zinc-400">
-                  <span>Response Time</span>
-                  <span className="text-cyan-400">{result.duration_ms}ms</span>
-                </div>
-                <div className="flex justify-between text-sm text-zinc-400">
-                  <span>Fit Score</span>
-                  <span className={result.fit_score === "Strong" ? "text-emerald-400" : result.fit_score === "Medium" ? "text-yellow-400" : "text-red-400"}>{result.fit_score}</span>
-                </div>
-              </div>
-            )}
+            <div className="w-48">
+              <label className="text-xs text-zinc-400 block mb-2">Budget ($)</label>
+              <input type="number" value={budget || ""} onChange={(e) => setBudget(Number(e.target.value))} placeholder="150000" className="w-full bg-zinc-950 border border-zinc-700 focus:border-cyan-500 rounded-2xl px-5 py-4 text-white placeholder-zinc-600 focus:outline-none transition-all" />
+            </div>
           </div>
+          <button
+            onClick={handleSearch}
+            disabled={isRunning || !company.trim()}
+            className="w-full bg-gradient-to-r from-cyan-500 via-blue-600 to-cyan-500 hover:brightness-110 py-5 rounded-2xl font-semibold text-lg tracking-wide shadow-2xl shadow-cyan-500/30 transition-all active:scale-[0.985] disabled:opacity-50"
+          >
+            {isRunning ? (step === "researching" ? "Researching company..." : "Qualifying lead...") : "Search & Qualify"}
+          </button>
+        </div>
 
-          {/* Pipeline */}
-          <div className="lg:col-span-12 bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8">
-            <h3 className="text-xl font-semibold mb-8">Agent Pipeline</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 relative">
-              <div className="hidden lg:block absolute top-12 left-0 right-0 h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent z-0" />
-              {pipelineAgents.map((agent, i) => {
-                const status = agent.getStatus();
-                return (
-                  <div key={i} className="relative z-10 bg-zinc-900 border border-zinc-700/50 rounded-2xl p-6 hover:border-zinc-500/50 transition-all">
-                    <div className={`w-10 h-10 rounded-2xl mb-4 flex items-center justify-center ${status === "completed" ? "bg-emerald-500/10 text-emerald-400" : status === "running" ? "bg-blue-500/10 text-blue-400 animate-pulse" : "bg-zinc-800 text-zinc-400"}`}>
-                      {status === "completed" ? <CheckCircle /> : status === "running" ? <Clock /> : <AlertTriangle />}
-                    </div>
-                    <h4 className="font-semibold mb-1 text-sm">{agent.name}</h4>
-                    <p className={`text-xs uppercase tracking-widest ${status === "completed" ? "text-emerald-400" : status === "running" ? "text-blue-400" : "text-zinc-500"}`}>{status}</p>
+        {/* Pipeline */}
+        <div className="bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8 mb-8">
+          <h3 className="text-lg font-semibold mb-6">Agent Pipeline</h3>
+          <div className="flex items-center gap-2">
+            {pipelineSteps.map((s, i) => (
+              <div key={i} className="flex items-center gap-2 flex-1">
+                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm flex-1 ${s.status === "completed" ? "border-emerald-500/50 bg-emerald-500/5 text-emerald-400" : s.status === "running" ? "border-blue-500/50 bg-blue-500/5 text-blue-400 animate-pulse" : "border-zinc-700/50 bg-zinc-800/50 text-zinc-500"}`}>
+                  {s.status === "completed" ? <CheckCircle className="w-4 h-4" /> : s.status === "running" ? <Clock className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  <span className="truncate">{s.name}</span>
+                </div>
+                {i < pipelineSteps.length - 1 && <span className="text-zinc-700">{"\u2192"}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Results */}
+        {result && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
+            {/* Research */}
+            <div className="lg:col-span-7 bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <Building2 className="text-cyan-400" />
+                <h3 className="text-xl font-semibold">Company Research</h3>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-3xl font-bold tracking-tight">{result.research.company}</h4>
+                  <p className="text-cyan-400 text-sm mt-1">{result.research.industry}</p>
+                </div>
+                <p className="text-zinc-300 leading-relaxed">{result.research.description}</p>
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="bg-zinc-800/50 rounded-xl p-4">
+                    <span className="text-xs text-zinc-500 block mb-1">Size</span>
+                    <span className="text-lg font-semibold">{result.research.estimated_size}</span>
                   </div>
-                );
-              })}
+                  <div className="bg-zinc-800/50 rounded-xl p-4">
+                    <span className="text-xs text-zinc-500 block mb-1">Revenue</span>
+                    <span className="text-lg font-semibold">{result.research.estimated_revenue}</span>
+                  </div>
+                  <div className="bg-zinc-800/50 rounded-xl p-4">
+                    <span className="text-xs text-zinc-500 block mb-1">AI Readiness</span>
+                    <span className={`text-lg font-semibold ${result.research.ai_readiness === "High" ? "text-emerald-400" : result.research.ai_readiness === "Medium" ? "text-yellow-400" : "text-red-400"}`}>{result.research.ai_readiness}</span>
+                  </div>
+                  <div className="bg-zinc-800/50 rounded-xl p-4">
+                    <span className="text-xs text-zinc-500 block mb-1">Tech Stack</span>
+                    <span className="text-sm">{result.research.tech_stack_signals}</span>
+                  </div>
+                </div>
+                <div className="bg-zinc-800/50 rounded-xl p-4">
+                  <span className="text-xs text-zinc-500 block mb-1">Recent News</span>
+                  <p className="text-sm text-zinc-300">{result.research.recent_news}</p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* LLM Result */}
-          {result && (
+            {/* Qualification + ROI */}
+            <div className="lg:col-span-5 space-y-8">
+              <div className="bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Zap className="text-cyan-400" />
+                    <h3 className="text-xl font-semibold">Qualification</h3>
+                  </div>
+                  <span className={`text-sm px-4 py-1.5 rounded-full font-medium ${result.qualification === "Qualified" ? "bg-emerald-500/10 text-emerald-400" : result.qualification === "Nurture" ? "bg-yellow-500/10 text-yellow-400" : "bg-red-500/10 text-red-400"}`}>
+                    {result.qualification}
+                  </span>
+                </div>
+                <div className={`text-3xl font-bold mb-4 ${result.fit_score === "Strong" ? "text-emerald-400" : result.fit_score === "Medium" ? "text-yellow-400" : "text-red-400"}`}>
+                  {result.fit_score} Fit
+                </div>
+                <p className="text-zinc-300 text-sm leading-relaxed mb-4">{result.reasoning}</p>
+                <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-4">
+                  <span className="text-xs text-cyan-400 block mb-1">Recommended Action</span>
+                  <p className="text-sm font-medium">{result.recommended_action}</p>
+                </div>
+              </div>
+
+              <div className="bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-sm text-zinc-400">Estimated ROI</h3>
+                    <div className="text-5xl font-bold text-emerald-400 mt-2 tracking-tighter">${result.roi_estimate.toLocaleString()}</div>
+                  </div>
+                  <DollarSign className="w-10 h-10 text-emerald-400/30" />
+                </div>
+                <div className="text-xs text-zinc-500 mt-4">{result.duration_ms}ms response time</div>
+              </div>
+            </div>
+
+            {/* Governance */}
             <div className="lg:col-span-12 bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8">
               <div className="flex items-center gap-3 mb-6">
-                <Zap className="text-cyan-400" />
-                <h3 className="text-xl font-semibold">Agent Output</h3>
-                <span className={`text-xs px-3 py-1 rounded-full font-medium ${result.qualification === "Qualified" ? "bg-emerald-500/10 text-emerald-400" : result.qualification === "Nurture" ? "bg-yellow-500/10 text-yellow-400" : "bg-red-500/10 text-red-400"}`}>
-                  {result.qualification}
-                </span>
+                <Shield className="text-emerald-400" />
+                <h3 className="text-xl font-semibold">Governance Checks</h3>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <h4 className="text-sm text-zinc-400 mb-2">Reasoning</h4>
-                  <p className="text-zinc-200 leading-relaxed">{result.reasoning}</p>
-                  <h4 className="text-sm text-zinc-400 mt-6 mb-2">Recommended Action</h4>
-                  <p className="text-cyan-400 font-medium">{result.recommended_action}</p>
-                </div>
-                <div>
-                  <h4 className="text-sm text-zinc-400 mb-3">Governance Checks</h4>
-                  <div className="space-y-2">
-                    {Object.entries(result.governance_checks).map(([key, value]) => (
-                      <div key={key} className="flex justify-between items-center text-sm">
-                        <span className="text-zinc-400">{key.replace(/_/g, " ")}</span>
-                        <span className={value === "passed" || value === "compliant" || value === "approved" || value === "all_scoped" ? "text-emerald-400" : "text-yellow-400"}>
-                          {value}
-                        </span>
-                      </div>
-                    ))}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {Object.entries(result.governance_checks).map(([key, value]) => (
+                  <div key={key} className="bg-zinc-800/50 rounded-xl p-4 text-center">
+                    <div className={`text-sm font-medium mb-1 ${value === "passed" || value === "compliant" || value === "approved" || value === "all_scoped" ? "text-emerald-400" : "text-yellow-400"}`}>{value}</div>
+                    <div className="text-xs text-zinc-500">{key.replace(/_/g, " ")}</div>
                   </div>
-                </div>
+                ))}
               </div>
-            </div>
-          )}
-
-          {/* Error */}
-          {error && (
-            <div className="lg:col-span-12 bg-red-950/50 border border-red-800/50 rounded-3xl p-8">
-              <h3 className="text-lg font-semibold text-red-400 mb-2">Error</h3>
-              <p className="text-red-300">{error}</p>
-              <p className="text-sm text-zinc-500 mt-2">Make sure the backend is running: cd backend && uvicorn src.main:app --reload --port 8000</p>
-            </div>
-          )}
-
-          {/* Governance */}
-          <div className="lg:col-span-12 bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xl font-semibold">Governance Policies</h3>
-              <div className="bg-emerald-500/10 text-emerald-400 text-sm px-5 py-2 rounded-full font-medium">Active</div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6 text-sm">
-              {["No PII can leave EU region", "Proposals > $250k require finance approval", "Hallucination score must be <5%", "All API calls use scoped tokens", "High-value actions require HITL"].map((policy, i) => (
-                <div key={i} className="flex gap-4 items-start">
-                  <Shield className="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" />
-                  <span>{policy}</span>
-                </div>
-              ))}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-950/50 border border-red-800/50 rounded-3xl p-8 mb-8">
+            <h3 className="text-lg font-semibold text-red-400 mb-2">Error</h3>
+            <p className="text-red-300">{error}</p>
+            <p className="text-sm text-zinc-500 mt-2">Start the backend: cd backend && uvicorn src.main:app --reload --port 8000</p>
+          </div>
+        )}
       </div>
     </div>
   );
